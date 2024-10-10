@@ -19,6 +19,7 @@ class CRRImpl(DDPGBaseImpl):
     _beta: float
     _n_action_samples: int
     _advantage_type: str
+    _adv_norm: bool
     _weight_type: str
     _max_weight: float
     _policy: Optional[NonSquashedNormalPolicy]
@@ -39,6 +40,7 @@ class CRRImpl(DDPGBaseImpl):
         beta: float,
         n_action_samples: int,
         advantage_type: str,
+        adv_norm: bool,
         weight_type: str,
         max_weight: float,
         n_critics: int,
@@ -69,6 +71,7 @@ class CRRImpl(DDPGBaseImpl):
         self._beta = beta
         self._n_action_samples = n_action_samples
         self._advantage_type = advantage_type
+        self._adv_norm = adv_norm
         self._weight_type = weight_type
         self._max_weight = max_weight
 
@@ -97,6 +100,11 @@ class CRRImpl(DDPGBaseImpl):
         if self._weight_type == "binary":
             return (advantages > 0.0).float()
         elif self._weight_type == "exp":
+            # TODO
+            # normalize advantage over a batch
+            # exp in softmax
+            if self._adv_norm:
+                return F.softmax(advantages / self._beta)
             return (advantages / self._beta).exp().clamp(0.0, self._max_weight)
         raise ValueError(f"invalid weight type: {self._weight_type}.")
 
@@ -131,6 +139,11 @@ class CRRImpl(DDPGBaseImpl):
                 values = reshaped_values.mean(dim=1)
             elif self._advantage_type == "max":
                 values = reshaped_values.max(dim=1).values
+            elif self._advantage_type == "crrplus":
+                flat_values = self._q_func(flat_obs_t, flat_actions, reduction="min")
+                reshaped_values = flat_values.view(obs_t.shape[0], -1, 1)
+                values = reshaped_values.mean(dim=1)
+                return self._q_func(obs_t, act_t, reduction="min") - values
             else:
                 raise ValueError(
                     f"invalid advantage type: {self._advantage_type}."

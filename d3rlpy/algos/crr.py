@@ -91,6 +91,7 @@ class CRR(AlgoBase):
             :math:`A(s, a)` and for CWP.
         advantage_type (str): advantage function type. The available options
             are ``['mean', 'max']``.
+        adv_norm (bool): normalization of exp advantage over a batch
         weight_type (str): filter function type. The available options
             are ``['binary', 'exp']``.
         max_weight (float): maximum weight for cross-entropy loss.
@@ -124,6 +125,7 @@ class CRR(AlgoBase):
     _beta: float
     _n_action_samples: int
     _advantage_type: str
+    _adv_norm: bool
     _weight_type: str
     _max_weight: float
     _n_critics: int
@@ -151,6 +153,7 @@ class CRR(AlgoBase):
         beta: float = 1.0,
         n_action_samples: int = 4,
         advantage_type: str = "mean",
+        adv_norm: bool = False,
         weight_type: str = "exp",
         max_weight: float = 20.0,
         n_critics: int = 1,
@@ -185,6 +188,7 @@ class CRR(AlgoBase):
         self._beta = beta
         self._n_action_samples = n_action_samples
         self._advantage_type = advantage_type
+        self._adv_norm = adv_norm
         self._weight_type = weight_type
         self._max_weight = max_weight
         self._n_critics = n_critics
@@ -212,6 +216,7 @@ class CRR(AlgoBase):
             beta=self._beta,
             n_action_samples=self._n_action_samples,
             advantage_type=self._advantage_type,
+            adv_norm=self._adv_norm,
             weight_type=self._weight_type,
             max_weight=self._max_weight,
             n_critics=self._n_critics,
