@@ -617,13 +617,19 @@ def crr_mean_filtered_percentage(algo: AlgoProtocol, episodes: List[Episode]) ->
     total_percentages = []
     for episode in episodes:
         for batch in _make_batches(episode, WINDOW_SIZE, algo.n_frames):
-            # compute advantage
-            advantages = algo.impl._compute_advantage(batch.obersations, batch.actions)
 
+            advantages = []
             # negatives get filtered
             adv_positives = 0
             adv_negatives = 0
-            for adv in advantages:
+
+            for b in batch:
+                observation = th.unsqueeze(th.from_numpy(b.observation), 0).to(algo._use_gpu.get_id())
+                action = th.unsqueeze(th.from_numpy(b.action), 0).to(algo._use_gpu.get_id())
+
+                # compute advantage
+                adv = algo.impl._compute_advantage(observation, action)
+                advantages.append(adv.item())
                 if adv.item() > 0:
                     adv_positives += 1
                 else:
