@@ -12,6 +12,8 @@ from .scorer import (
     soft_opc_scorer,
     td_error_scorer,
     value_estimation_std_scorer,
+    mean_q_values,
+    crr_mean_filtered_percentage,
 )
 
 __all__ = [
@@ -27,4 +29,6 @@ __all__ = [
     "soft_opc_scorer",
     "td_error_scorer",
     "value_estimation_std_scorer",
+    "mean_q_values",
+    "crr_mean_filtered_percentage",
 ]

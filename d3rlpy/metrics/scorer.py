@@ -73,7 +73,7 @@ def _make_batches(
 def td_error_scorer(algo: AlgoProtocol, episodes: List[Episode]) -> float:
     r"""Returns average TD error.
 
-    This metics suggests how Q functions overfit to training sets.
+    This metrics suggests how Q functions overfit to training sets.
     If the TD error is large, the Q functions are overfitting.
 
     .. math::
@@ -576,3 +576,59 @@ def dynamics_prediction_variance_scorer(
             pred = cast(Tuple[np.ndarray, np.ndarray, np.ndarray], pred)
             total_variances += pred[2].tolist()
     return float(np.mean(total_variances))
+
+def mean_q_values(algo: AlgoProtocol, episodes: List[Episode]) -> float:
+    r"""Returns average estimated Q-values.
+
+    .. math::
+
+        \mathbb{E}_{s_t, a_t, r_{t+1}, s_{t+1} \sim D}
+            [(Q_\theta (s_t, a_t)]
+
+    Args:
+        algo: algorithm.
+        episodes: list of episodes.
+
+    Returns:
+        average estimated Q-values.
+
+    """
+    total_values = []
+    for episode in episodes:
+        for batch in _make_batches(episode, WINDOW_SIZE, algo.n_frames):
+            # estimate q-values for current observations
+            values = algo.predict_value(batch.observations, batch.actions)
+
+            total_values += values.tolist()
+
+    return float(np.mean(total_values))
+
+def crr_mean_filtered_percentage(algo: AlgoProtocol, episodes: List[Episode]) -> float:
+    r"""For CRR: Calculates the percentage of actions that get filtered based on the advantage.
+
+    Args:
+        algo: algorithm.
+        episodes: list of episodes.
+
+    Returns:
+        Mean percentage of filtered actions based on advantage.
+
+    """
+    total_percentages = []
+    for episode in episodes:
+        for batch in _make_batches(episode, WINDOW_SIZE, algo.n_frames):
+            # compute advantage
+            advantages = algo.impl._compute_advantage(batch.obersations, batch.actions)
+
+            # negatives get filtered
+            adv_positives = 0
+            adv_negatives = 0
+            for adv in advantages:
+                if adv.item() > 0:
+                    adv_positives += 1
+                else:
+                    adv_negatives += 1
+
+            total_percentages.append(adv_negatives / len(advantages))
+
+    return float(np.mean(total_percentages))
