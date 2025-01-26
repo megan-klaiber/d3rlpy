@@ -7,6 +7,7 @@ from typing_extensions import Protocol
 from ..dataset import Episode, TransitionMiniBatch
 from ..preprocessing.reward_scalers import RewardScaler
 from ..preprocessing.stack import StackedObservation
+from ..torch_utility import TorchMiniBatch
 
 WINDOW_SIZE = 1024
 
@@ -617,24 +618,18 @@ def crr_mean_filtered_percentage(algo: AlgoProtocol, episodes: List[Episode]) ->
     total_percentages = []
     for episode in episodes:
         for batch in _make_batches(episode, WINDOW_SIZE, algo.n_frames):
-
-            advantages = []
-            # negatives get filtered
-            adv_positives = 0
-            adv_negatives = 0
-
-            for b in batch:
-                observation = th.unsqueeze(th.from_numpy(b.observation), 0).to(algo._use_gpu.get_id())
-                action = th.unsqueeze(th.from_numpy(b.action), 0).to(algo._use_gpu.get_id())
-
-                # compute advantage
-                adv = algo.impl._compute_advantage(observation, action)
-                advantages.append(adv.item())
-                if adv.item() > 0:
-                    adv_positives += 1
-                else:
-                    adv_negatives += 1
-
-            total_percentages.append(adv_negatives / len(advantages))
+            # convert to tensor
+            batch_torch = TorchMiniBatch(batch, algo._use_gpu.get_id())
+            # compute advantage
+            advantages = algo.impl._compute_advantage(batch_torch.observations, batch_torch.actions)
+            # convert to numpy
+            advantages_numpy = advantages.cpu().detach().numpy()
+            # count negative values
+            count_neg = np.sum(advantages_numpy <= 0, axis=0)[0]
+            # calculate percentage
+            total_percentages.append(count_neg / len(advantages_numpy))
 
     return float(np.mean(total_percentages))
+
+
+
