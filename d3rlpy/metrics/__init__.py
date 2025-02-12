@@ -14,6 +14,8 @@ from .scorer import (
     value_estimation_std_scorer,
     mean_q_values,
     crr_mean_filtered_percentage,
+    mean_value_estimates,
+    kl_divergence_action_space,
 )
 
 __all__ = [
@@ -31,4 +33,6 @@ __all__ = [
     "value_estimation_std_scorer",
     "mean_q_values",
     "crr_mean_filtered_percentage",
+    "mean_value_estimates",
+    "kl_divergence_action_space",
 ]

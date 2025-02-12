@@ -2,6 +2,7 @@ from typing import Any, Callable, Iterator, List, Optional, Tuple, Union, cast
 
 import gym
 import numpy as np
+import torch
 from typing_extensions import Protocol
 
 from ..dataset import Episode, TransitionMiniBatch
@@ -630,6 +631,84 @@ def crr_mean_filtered_percentage(algo: AlgoProtocol, episodes: List[Episode]) ->
             total_percentages.append(count_neg / len(advantages_numpy))
 
     return float(np.mean(total_percentages))
+
+def mean_value_estimates(algo: AlgoProtocol, episodes: List[Episode]) -> float:
+    r"""For IQL: Returns average estimated values (V-function).
+
+    .. math::
+
+        \mathbb{E}_{s_t, a_t, r_{t+1}, s_{t+1} \sim D}
+            [(Q_\theta (s_t, a_t)]
+
+    Args:
+        algo: algorithm.
+        episodes: list of episodes.
+
+    Returns:
+        average estimated values (V-function).
+
+    """
+    total_values = []
+    for episode in episodes:
+        for batch in _make_batches(episode, WINDOW_SIZE, algo.n_frames):
+            # estimate v-values for current observations
+            # convert to tensor
+            batch_torch = TorchMiniBatch(batch, algo._use_gpu.get_id())
+            with torch.no_grad():
+                values = algo.impl._value_func(batch_torch.observations).cpu().detach().numpy()
+
+            values = values.reshape(-1)
+
+            total_values += values.tolist()
+
+    return float(np.mean(total_values))
+
+
+def kl_divergence_gaussian(mu1, sigma1, mu2, sigma2):
+    """
+    Compute the KL divergence between two Gaussian distributions P and Q.
+    P ~ N(mu1, sigma1^2)
+    Q ~ N(mu2, sigma2^2)
+    """
+    term1 = np.log(sigma2 / sigma1)
+    term2 = (sigma1**2 + (mu1 - mu2)**2) / (2 * sigma2**2)
+    term3 = -0.5
+    kl_div = term1 + term2 + term3
+    return kl_div
+
+def kl_divergence_action_space(algo: AlgoProtocol, episodes: List[Episode]) -> float:
+    r"""For TD3BC: Calculate KL divergence between dataset and policy over the action space.
+
+    Args:
+        algo: algorithm.
+        episodes: list of episodes.
+
+    Returns:
+        Average KL divergence over action space.
+
+    """
+    all_values = []
+    for episode in episodes:
+        for batch in _make_batches(episode, WINDOW_SIZE, algo.n_frames):
+            # estimate v-values for current observations
+            # convert to tensor
+            batch_torch = TorchMiniBatch(batch, algo._use_gpu.get_id())
+            with (torch.no_grad()):
+                # get policy distribution
+                actions = algo.predict(batch_torch.observations)
+                action_mean = np.mean(actions)
+                action_std = np.std(actions)
+
+            # get dataset distribution
+            dataset_mean = np.mean(batch.actions)
+            dataset_std = np.std(batch.actions)
+
+            # calculate KL divergence
+            kl_div = kl_divergence_gaussian(dataset_mean, dataset_std, action_mean, action_std)
+
+            all_values.append(kl_div)
+
+    return float(np.mean(all_values))
 
 
 

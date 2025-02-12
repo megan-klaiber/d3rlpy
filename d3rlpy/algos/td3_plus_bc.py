@@ -189,6 +189,11 @@ class TD3PlusBC(AlgoBase):
             self._impl.update_critic_target()
             self._impl.update_actor_target()
 
+            # bc loss
+            action = self._impl.predict_best_action(batch.observations)
+            bc_loss = ((batch.actions - action) ** 2).mean()
+            metrics.update({"bc_loss": bc_loss})
+
         return metrics
 
     def get_action_type(self) -> ActionSpace:
