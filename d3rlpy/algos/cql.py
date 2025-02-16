@@ -20,6 +20,7 @@ from ..models.q_functions import QFunctionFactory
 from .base import AlgoBase
 from .dqn import DoubleDQN
 from .torch.cql_impl import CQLImpl, DiscreteCQLImpl
+from ..torch_utility import TorchMiniBatch
 
 
 class CQL(AlgoBase):
@@ -251,6 +252,11 @@ class CQL(AlgoBase):
 
         actor_loss = self._impl.update_actor(batch)
         metrics.update({"actor_loss": actor_loss})
+
+        # conservative loss
+        batch_torch = TorchMiniBatch(batch, self._use_gpu.get_id())
+        conservative_loss = self._impl._compute_conservative_loss(batch_torch.observations, batch_torch.actions, batch_torch.next_observations).cpu().detach().numpy()
+        metrics.update({"conservative_loss": conservative_loss})
 
         self._impl.update_critic_target()
         self._impl.update_actor_target()

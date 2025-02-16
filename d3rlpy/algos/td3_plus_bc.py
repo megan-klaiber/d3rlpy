@@ -182,17 +182,17 @@ class TD3PlusBC(AlgoBase):
         critic_loss = self._impl.update_critic(batch)
         metrics.update({"critic_loss": critic_loss})
 
+        # bc loss
+        action = self._impl.predict_best_action(batch.observations)
+        bc_loss = ((batch.actions - action) ** 2).mean()
+        metrics.update({"bc_loss": bc_loss})
+
         # delayed policy update
         if self._grad_step % self._update_actor_interval == 0:
             actor_loss = self._impl.update_actor(batch)
             metrics.update({"actor_loss": actor_loss})
             self._impl.update_critic_target()
             self._impl.update_actor_target()
-
-            # bc loss
-            action = self._impl.predict_best_action(batch.observations)
-            bc_loss = ((batch.actions - action) ** 2).mean()
-            metrics.update({"bc_loss": bc_loss})
 
         return metrics
 

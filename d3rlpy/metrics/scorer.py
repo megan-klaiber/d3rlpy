@@ -710,5 +710,3 @@ def kl_divergence_action_space(algo: AlgoProtocol, episodes: List[Episode]) -> f
 
     return float(np.mean(all_values))
 
-
-
