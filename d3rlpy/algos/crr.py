@@ -166,6 +166,8 @@ class CRR(AlgoBase):
         action_scaler: ActionScalerArg = None,
         reward_scaler: RewardScalerArg = None,
         impl: Optional[CRRImpl] = None,
+        retain_percentage: float = 0.4,
+        restrict_filtering: bool = False,
         **kwargs: Any,
     ):
         super().__init__(
@@ -199,6 +201,9 @@ class CRR(AlgoBase):
         self._use_gpu = check_use_gpu(use_gpu)
         self._impl = impl
 
+        self._retain_percentage = retain_percentage
+        self._restrict_filtering = restrict_filtering
+
     def _create_impl(
         self, observation_shape: Sequence[int], action_size: int
     ) -> None:
@@ -225,6 +230,8 @@ class CRR(AlgoBase):
             scaler=self._scaler,
             action_scaler=self._action_scaler,
             reward_scaler=self._reward_scaler,
+            retain_percentage=self._retain_percentage,
+            restrict_filtering=self._restrict_filtering,
         )
         self._impl.build()
 

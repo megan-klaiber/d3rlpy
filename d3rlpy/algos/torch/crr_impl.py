@@ -49,6 +49,8 @@ class CRRImpl(DDPGBaseImpl):
         scaler: Optional[Scaler],
         action_scaler: Optional[ActionScaler],
         reward_scaler: Optional[RewardScaler],
+        retain_percentage: float,
+        restrict_filtering: bool,
     ):
         super().__init__(
             observation_shape=observation_shape,
@@ -75,6 +77,9 @@ class CRRImpl(DDPGBaseImpl):
         self._weight_type = weight_type
         self._max_weight = max_weight
 
+        self._retain_percentage = retain_percentage
+        self._restrict_filtering = restrict_filtering
+
     def _build_actor(self) -> None:
         self._policy = create_non_squashed_normal_policy(
             self._observation_shape,
@@ -90,6 +95,33 @@ class CRRImpl(DDPGBaseImpl):
         log_probs = dist.log_prob(batch.actions)
 
         weight = self._compute_weight(batch.observations, batch.actions)
+
+        while self._restrict_filtering:
+            # retain percentage of samples
+            retain_percentage = self._retain_percentage
+
+            # compute threshold for top percentage samples
+            # TODO check for value in range(0.0,1.0)
+            threshold = torch.quantile(weight, 1-retain_percentage)
+
+            # filter samples based on threshold
+            indices = torch.where(weight >= threshold)[0]
+
+            log_probs_filtered = log_probs[indices]
+            weight_filtered = weight[indices]
+
+            # TODO
+            percentage = sum(weight > 1.0) / len(weight)
+
+            #print("kept " + str(len(indices)))
+            #print("per " + str(percentage))
+
+            # if less than retain_percentage would be filtered keep it that way
+            if percentage > self._retain_percentage:
+                print("BREAK")
+                break
+
+            return -(log_probs_filtered * weight_filtered).mean()
 
         return -(log_probs * weight).mean()
 
