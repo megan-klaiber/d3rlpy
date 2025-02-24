@@ -96,32 +96,40 @@ class CRRImpl(DDPGBaseImpl):
 
         weight = self._compute_weight(batch.observations, batch.actions)
 
+        '''
         while self._restrict_filtering:
             # retain percentage of samples
             retain_percentage = self._retain_percentage
 
-            # compute threshold for top percentage samples
-            # TODO check for value in range(0.0,1.0)
-            threshold = torch.quantile(weight, 1-retain_percentage)
+            if self._weight_type == "exp":
+                # TODO check for crrplus
+                # compute threshold for top percentage samples
+                # TODO check for value in range(0.0,1.0)
+                threshold = torch.quantile(weight, 1-retain_percentage)
 
-            # filter samples based on threshold
-            indices = torch.where(weight >= threshold)[0]
+                # filter samples based on threshold
+                indices = torch.where(weight >= threshold)[0]
 
-            log_probs_filtered = log_probs[indices]
-            weight_filtered = weight[indices]
+                log_probs_filtered = log_probs[indices]
+                weight_filtered = weight[indices]
 
-            # TODO
-            percentage = sum(weight > 1.0) / len(weight)
+                # TODO
+                percentage = sum(weight > 1.0) / len(weight)
 
-            #print("kept " + str(len(indices)))
-            #print("per " + str(percentage))
+                #print("kept " + str(len(indices)))
+                #print("per " + str(percentage))
 
-            # if less than retain_percentage would be filtered keep it that way
-            if percentage > self._retain_percentage:
-                print("BREAK")
-                break
+                # if less than (1-retain_percentage) would be filtered keep it that way
+                # Note: bigger is correct
+                if percentage > self._retain_percentage:
+                    print("BREAK")
+                    break
 
-            return -(log_probs_filtered * weight_filtered).mean()
+                return -(log_probs_filtered * weight_filtered).mean()
+            elif self._weight_type == "binary":
+                # TODO
+                pass
+        '''
 
         return -(log_probs * weight).mean()
 
@@ -129,6 +137,38 @@ class CRRImpl(DDPGBaseImpl):
         self, obs_t: torch.Tensor, act_t: torch.Tensor
     ) -> torch.Tensor:
         advantages = self._compute_advantage(obs_t, act_t)
+
+        if self._restrict_filtering:
+            # retain percentage of samples
+            retain_percentage = self._retain_percentage
+
+            # compute threshold for top percentage samples
+            # TODO check for value in range(0.0,1.0)
+            threshold = torch.quantile(advantages, 1 - retain_percentage)
+
+            # filter samples based on threshold
+            # keep best samples
+            indices = torch.where(advantages >= threshold)[0]
+            # get percentage of positive values
+            percentage = sum(advantages > 0.0) / len(advantages)
+
+            # if less than (1-retain_percentage) would be filtered keep it that way
+            # Note: bigger is correct
+            if percentage > self._retain_percentage:
+                print("BREAK")
+            else:
+                if self._weight_type == "binary":
+                    # for binary we have to make sure that enough samples have positive advantages,
+                    # otherwise more samples get filtered
+                    # keep best samples
+                    import ipdb
+                    ipdb.set_trace()
+                    advantages[indices] = 1.0
+                    advantages = advantages[indices]
+                else:
+                    # TODO for exp set values
+                    advantages = advantages[indices]
+
         if self._weight_type == "binary":
             return (advantages > 0.0).float()
         elif self._weight_type == "exp":
@@ -136,6 +176,8 @@ class CRRImpl(DDPGBaseImpl):
             # normalize advantage over a batch
             # exp in softmax
             if self._adv_norm:
+                #import ipdb
+                #ipdb.set_trace()
                 return F.softmax(advantages / self._beta)
             return (advantages / self._beta).exp().clamp(0.0, self._max_weight)
         raise ValueError(f"invalid weight type: {self._weight_type}.")
@@ -199,7 +241,6 @@ class CRRImpl(DDPGBaseImpl):
         assert self._q_func is not None
 
         # compute CWP
-
         actions = self._policy.onnx_safe_sample_n(x, self._n_action_samples)
         # (batch_size, N, action_size) -> (batch_size * N, action_size)
         flat_actions = actions.reshape(-1, self._action_size)
