@@ -163,6 +163,7 @@ class CRRImpl(DDPGBaseImpl):
                     # keep best samples
                     import ipdb
                     ipdb.set_trace()
+
                     advantages[indices] = 1.0
                     advantages = advantages[indices]
                 else:

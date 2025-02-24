@@ -632,6 +632,34 @@ def crr_mean_filtered_percentage(algo: AlgoProtocol, episodes: List[Episode]) ->
 
     return float(np.mean(total_percentages))
 
+def crr_real_mean_filtered_percentage(algo: AlgoProtocol, episodes: List[Episode]) -> float:
+    r"""For CRR: Calculates the percentage of actions that get filtered based on the weight (after active filtering).
+
+    Args:
+        algo: algorithm.
+        episodes: list of episodes.
+
+    Returns:
+        Mean percentage of filtered actions based on the weight (after active filtering).
+
+    """
+    total_percentages = []
+    for episode in episodes:
+        for batch in _make_batches(episode, WINDOW_SIZE, algo.n_frames):
+            # convert to tensor
+            batch_torch = TorchMiniBatch(batch, algo._use_gpu.get_id())
+            # compute advantage
+            weights = algo.impl._compute_weight(batch_torch.observations, batch_torch.actions)
+            # convert to numpy
+            weights_numpy = weights.cpu().detach().numpy()
+
+            filtered_percentages = 1 - (len(weights_numpy) / len(batch_torch.observations))
+
+            # calculate percentage
+            total_percentages.append(filtered_percentages)
+
+    return float(np.mean(total_percentages))
+
 def mean_value_estimates(algo: AlgoProtocol, episodes: List[Episode]) -> float:
     r"""For IQL: Returns average estimated values (V-function).
 

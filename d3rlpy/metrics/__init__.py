@@ -16,6 +16,7 @@ from .scorer import (
     crr_mean_filtered_percentage,
     mean_value_estimates,
     kl_divergence_action_space,
+    crr_real_mean_filtered_percentage,
 )
 
 __all__ = [
@@ -35,4 +36,5 @@ __all__ = [
     "crr_mean_filtered_percentage",
     "mean_value_estimates",
     "kl_divergence_action_space",
+    "crr_real_mean_filtered_percentage",
 ]
