@@ -94,7 +94,11 @@ class CRRImpl(DDPGBaseImpl):
         dist = self._policy.dist(batch.observations)
         log_probs = dist.log_prob(batch.actions)
 
-        weight = self._compute_weight(batch.observations, batch.actions)
+        if self._restrict_filtering:
+            weight, indices = self._compute_weight(batch.observations, batch.actions)
+            log_probs = log_probs[indices]
+        else:
+            weight = self._compute_weight(batch.observations, batch.actions)
 
         '''
         while self._restrict_filtering:
@@ -161,8 +165,8 @@ class CRRImpl(DDPGBaseImpl):
                     # for binary we have to make sure that enough samples have positive advantages,
                     # otherwise more samples get filtered
                     # keep best samples
-                    import ipdb
-                    ipdb.set_trace()
+                    #import ipdb
+                    #ipdb.set_trace()
 
                     advantages[indices] = 1.0
                     advantages = advantages[indices]
@@ -171,6 +175,8 @@ class CRRImpl(DDPGBaseImpl):
                     advantages = advantages[indices]
 
         if self._weight_type == "binary":
+            if self._restrict_filtering:
+                return (advantages > 0.0).float(), indices
             return (advantages > 0.0).float()
         elif self._weight_type == "exp":
             # TODO
@@ -179,7 +185,11 @@ class CRRImpl(DDPGBaseImpl):
             if self._adv_norm:
                 #import ipdb
                 #ipdb.set_trace()
+                if self._restrict_filtering:
+                    return F.softmax(advantages / self._beta), indices
                 return F.softmax(advantages / self._beta)
+            if self._restrict_filtering:
+                return (advantages / self._beta).exp().clamp(0.0, self._max_weight), indices
             return (advantages / self._beta).exp().clamp(0.0, self._max_weight)
         raise ValueError(f"invalid weight type: {self._weight_type}.")
 
