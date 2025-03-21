@@ -656,7 +656,6 @@ def crr_real_mean_filtered_percentage(algo: AlgoProtocol, episodes: List[Episode
             # convert to numpy
             weights_numpy = weights.cpu().detach().numpy()
 
-            # TODO check if it works
             if algo.impl._weight_type == "binary":
                 weights_numpy = weights_numpy[weights_numpy != 0.0]
                 filtered_percentages = 1 - (len(weights_numpy) / len(batch_torch.observations))

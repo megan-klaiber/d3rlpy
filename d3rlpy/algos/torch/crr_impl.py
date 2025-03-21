@@ -143,16 +143,6 @@ class CRRImpl(DDPGBaseImpl):
         advantages = self._compute_advantage(obs_t, act_t)
 
         if self._restrict_filtering:
-            # retain percentage of samples
-            retain_percentage = self._retain_percentage
-
-            # compute threshold for top percentage samples
-            # TODO check for value in range(0.0,1.0)
-            threshold = torch.quantile(advantages, 1 - retain_percentage)
-
-            # filter samples based on threshold
-            # keep best samples
-            indices = torch.where(advantages >= threshold)[0]
             # get percentage of positive values
             percentage = sum(advantages > 0.0) / len(advantages)
 
@@ -160,7 +150,20 @@ class CRRImpl(DDPGBaseImpl):
             # Note: bigger is correct
             if percentage > self._retain_percentage:
                 print("BREAK")
+                indices = torch.arange(0, len(advantages))
             else:
+
+                # retain percentage of samples
+                retain_percentage = self._retain_percentage
+
+                # compute threshold for top percentage samples
+                # TODO check for value in range(0.0,1.0)
+                threshold = torch.quantile(advantages, 1 - retain_percentage)
+
+                # filter samples based on threshold
+                # keep best samples
+                indices = torch.where(advantages >= threshold)[0]
+
                 if self._weight_type == "binary":
                     # for binary we have to make sure that enough samples have positive advantages,
                     # otherwise more samples get filtered
