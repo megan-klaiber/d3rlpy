@@ -148,46 +148,48 @@ class CRRImpl(DDPGBaseImpl):
 
             # if less than (1-retain_percentage) would be filtered keep it that way
             # Note: bigger is correct
+            # TODO strict filtering, keep really only 1%
+
+            '''
             if percentage > self._retain_percentage:
                 print("BREAK")
                 indices = torch.arange(0, len(advantages))
             else:
+            '''
 
-                # retain percentage of samples
-                retain_percentage = self._retain_percentage
+            #####
+            # retain percentage of samples
+            retain_percentage = self._retain_percentage
 
-                # compute threshold for top percentage samples
-                # TODO check for value in range(0.0,1.0)
-                threshold = torch.quantile(advantages, 1 - retain_percentage)
+            # compute threshold for top percentage samples
+            # TODO check for value in range(0.0,1.0)
+            threshold = torch.quantile(advantages, 1 - retain_percentage)
 
-                # filter samples based on threshold
+            # filter samples based on threshold
+            # keep best samples
+            indices = torch.where(advantages >= threshold)[0]
+
+            if self._weight_type == "binary":
+                # for binary we have to make sure that enough samples have positive advantages,
+                # otherwise more samples get filtered
                 # keep best samples
-                indices = torch.where(advantages >= threshold)[0]
 
-                if self._weight_type == "binary":
-                    # for binary we have to make sure that enough samples have positive advantages,
-                    # otherwise more samples get filtered
-                    # keep best samples
-                    #import ipdb
-                    #ipdb.set_trace()
+                advantages[indices] = 1.0
+                advantages = advantages[indices]
+            else:
+                # TODO for exp set values
+                advantages = advantages[indices]
 
-                    advantages[indices] = 1.0
-                    advantages = advantages[indices]
-                else:
-                    # TODO for exp set values
-                    advantages = advantages[indices]
+            #######
 
         if self._weight_type == "binary":
             if self._restrict_filtering:
                 return (advantages > 0.0).float(), indices
             return (advantages > 0.0).float()
         elif self._weight_type == "exp":
-            # TODO
             # normalize advantage over a batch
             # exp in softmax
             if self._adv_norm:
-                #import ipdb
-                #ipdb.set_trace()
                 if self._restrict_filtering:
                     return F.softmax(advantages / self._beta), indices
                 return F.softmax(advantages / self._beta)
