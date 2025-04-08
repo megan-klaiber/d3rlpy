@@ -161,8 +161,10 @@ class CRRImpl(DDPGBaseImpl):
             # retain percentage of samples
             retain_percentage = self._retain_percentage
 
+            # check if restrict_filtering is in range [0.0,1,0]
+            if retain_percentage < 0.0 or retain_percentage > 1.0:
+                raise ValueError(f"retain_percentage not in range [0.0, 1.0]: {retain_percentage}.")
             # compute threshold for top percentage samples
-            # TODO check for value in range(0.0,1.0)
             threshold = torch.quantile(advantages, 1 - retain_percentage)
 
             # filter samples based on threshold

@@ -38,6 +38,7 @@ class TD3PlusBCImpl(TD3Impl):
         scaler: Optional[Scaler],
         action_scaler: Optional[ActionScaler],
         reward_scaler: Optional[RewardScaler],
+        advantage_actor: bool,
     ):
         super().__init__(
             observation_shape=observation_shape,
@@ -60,11 +61,23 @@ class TD3PlusBCImpl(TD3Impl):
             reward_scaler=reward_scaler,
         )
         self._alpha = alpha
+        self._advantage_actor = advantage_actor
 
     def compute_actor_loss(self, batch: TorchMiniBatch) -> torch.Tensor:
         assert self._policy is not None
         assert self._q_func is not None
+
         action = self._policy(batch.observations)
         q_t = self._q_func(batch.observations, action, "none")[0]
+
+        # TODO integrate advantage function
+        # TODO more action samples
+        if self._advantage_actor:
+            # calculate advantage (esitmate) based CRR
+            # A(s,a) = Q(s,a) - Q(s, pi(s))
+            q_t_batch = self._q_func(batch.observations, batch.actions, "none")[0]
+
+            q_t = q_t_batch - q_t
+
         lam = self._alpha / (q_t.abs().mean()).detach()
         return lam * -q_t.mean() + ((batch.actions - action) ** 2).mean()

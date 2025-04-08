@@ -19,6 +19,7 @@ from ..models.optimizers import AdamFactory, OptimizerFactory
 from ..models.q_functions import QFunctionFactory
 from .base import AlgoBase
 from .torch.td3_plus_bc_impl import TD3PlusBCImpl
+from ..torch_utility import TorchMiniBatch
 
 
 class TD3PlusBC(AlgoBase):
@@ -76,6 +77,7 @@ class TD3PlusBC(AlgoBase):
             reward preprocessor. The available options are
             ``['clip', 'min_max', 'standard']``.
         impl (d3rlpy.algos.torch.td3_impl.TD3Impl): algorithm implementation.
+        advantage_actor (bool): Use advantage function in actor update.
 
     """
 
@@ -120,6 +122,7 @@ class TD3PlusBC(AlgoBase):
         action_scaler: ActionScalerArg = None,
         reward_scaler: RewardScalerArg = None,
         impl: Optional[TD3PlusBCImpl] = None,
+        advantage_actor: bool = False,
         **kwargs: Any
     ):
         super().__init__(
@@ -147,6 +150,7 @@ class TD3PlusBC(AlgoBase):
         self._update_actor_interval = update_actor_interval
         self._use_gpu = check_use_gpu(use_gpu)
         self._impl = impl
+        self._advantage_actor = advantage_actor
 
     def _create_impl(
         self, observation_shape: Sequence[int], action_size: int
@@ -171,6 +175,7 @@ class TD3PlusBC(AlgoBase):
             scaler=self._scaler,
             action_scaler=self._action_scaler,
             reward_scaler=self._reward_scaler,
+            advantage_actor=self._advantage_actor,
         )
         self._impl.build()
 
@@ -182,10 +187,23 @@ class TD3PlusBC(AlgoBase):
         critic_loss = self._impl.update_critic(batch)
         metrics.update({"critic_loss": critic_loss})
 
+
+        # convert to tensor
+        batch_torch = TorchMiniBatch(batch, self._use_gpu.get_id())
+
+        action = self._impl._policy(batch_torch.observations)
         # bc loss
-        action = self._impl.predict_best_action(batch.observations)
-        bc_loss = ((batch.actions - action) ** 2).mean()
-        metrics.update({"bc_loss": bc_loss})
+        #action = self._impl.predict_best_action(batch.observations)
+        bc_loss = ((batch_torch.actions.cpu() - action.cpu()) ** 2).mean()
+        metrics.update({"bc_loss": bc_loss.detach().cpu().numpy()})
+
+        # td3 loss (first term of actor update)
+        q_t = self._impl._q_func(batch_torch.observations, action, "none")[0]
+        metrics.update({"td3_loss": (-q_t.mean()).detach().cpu().numpy()})
+
+        # lambda
+        lam = self._impl._alpha / (q_t.abs().mean()).detach()
+        metrics.update({"lambda": lam.cpu().numpy()})
 
         # delayed policy update
         if self._grad_step % self._update_actor_interval == 0:
