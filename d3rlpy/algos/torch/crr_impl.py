@@ -96,7 +96,9 @@ class CRRImpl(DDPGBaseImpl):
 
         if self._restrict_filtering:
             weight, indices = self._compute_weight(batch.observations, batch.actions)
-            log_probs = log_probs[indices]
+            if self._weight_type == "binary":
+                # for exp keep all values
+                log_probs = log_probs[indices]
         else:
             weight = self._compute_weight(batch.observations, batch.actions)
 
@@ -180,7 +182,16 @@ class CRRImpl(DDPGBaseImpl):
                 advantages = advantages[indices]
             else:
                 # TODO for exp set values
-                advantages = advantages[indices]
+                # advantages = advantages[indices]
+
+                # check in which direction we have to shift the values for exp
+                # if percentage = retain_percentage -> no shift
+                if percentage > retain_percentage:
+                    # negative shift -> substract
+                    advantages = advantages - abs(threshold)
+                elif percentage < retain_percentage:
+                    # positive shift -> add
+                    advantages = advantages + abs(threshold)
 
             #######
 
@@ -191,6 +202,7 @@ class CRRImpl(DDPGBaseImpl):
         elif self._weight_type == "exp":
             # normalize advantage over a batch
             # exp in softmax
+            # softmax between 0 and 1
             if self._adv_norm:
                 if self._restrict_filtering:
                     return F.softmax(advantages / self._beta), indices

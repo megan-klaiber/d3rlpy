@@ -660,7 +660,8 @@ def crr_real_mean_filtered_percentage(algo: AlgoProtocol, episodes: List[Episode
                 weights_numpy = weights_numpy[weights_numpy != 0.0]
                 filtered_percentages = 1 - (len(weights_numpy) / len(batch_torch.observations))
             else:
-                filtered_percentages = 1 - (len(weights_numpy) / len(batch_torch.observations))
+                filtered_percentages = (sum(weights_numpy < 1.0) / len(weights_numpy))
+                #filtered_percentages = 1 - (len(weights_numpy) / len(batch_torch.observations))
 
             # calculate percentage
             total_percentages.append(filtered_percentages)
